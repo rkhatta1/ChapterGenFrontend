@@ -23,7 +23,13 @@ It is still under development. This is the repo for the project's frontend infra
 
 1. Make sure to set the backend up correctly. Check [this repository](https://github.com/rkhatta1/ChapterGen) for more info.
 
-2. Once you have the local-transcriber flask app running, install all the dependencies and start the Vite server.
+2. Create a new file **src/config.js**, and add the following in it:
+
+    ```bash
+    export const GOOGLE_CLIENT_ID = "<your-google-auth-client-id>"
+    ```
+
+2. Once you have the former configured and the local-transcriber flask app running, install all the dependencies and start the Vite server.
 
     ```bash
     npm install
@@ -35,5 +41,7 @@ It is still under development. This is the repo for the project's frontend infra
 
 ### Testing the chapter generation:
 
-- Open the local vite URL and enter all the values.
-- Play around with the sliders to witness various configurations for the generated captions.
+- Open the local vite URL and login using your test account/s.
+- Select your preferred YouTube channel.
+- Play around with the configuration sliders.
+- Generate the chapters with the click of a button.
