@@ -26,3 +26,5 @@ jobs:
           push: true
           # This tag matches the image name in your deployment.yaml
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/chapgen-frontend:v1
+          build-args: |
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}

@@ -5,6 +5,10 @@ COPY package.json ./
 COPY package-lock.json ./
 RUN npm install
 COPY . .
+
+ARG GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+
 RUN npm run build
 
 # Stage 2: Serve the application from a lightweight Nginx server

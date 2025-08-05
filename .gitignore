@@ -13,7 +13,6 @@ dist-ssr
 *.local
 CONTEXT.md
 .env
-src/config.js
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
