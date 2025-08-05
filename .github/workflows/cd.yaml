@@ -1,0 +1,26 @@
+name: Continuous Deployment for Frontend
+
+on:
+  workflow_run:
+    # IMPORTANT: This must match the name of the CI workflow file in your frontend repo
+    workflows: ["Continuous Integration for Frontend"]
+    # This must be the name of your frontend repository
+    repo: rkhatta1/ChapterGenFrontend
+    types:
+      - completed
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Deploy Frontend to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          script: |
+            echo "--- Deploying new frontend image to Kubernetes ---"
+            sudo kubectl rollout restart deployment frontend-deployment
+            echo "--- Frontend rollout complete ---"
