@@ -34,7 +34,7 @@ function App() {
 
   const fetchProcessedVideos = useCallback(async (email) => {
     try {
-      const response = await fetch(`http://localhost:8008/jobs/by-user/${email}`);
+      const response = await fetch(`/api/db/jobs/by-user/${email}`);
       
       if (response.status === 404) {
         setProcessedVideos([]);
@@ -146,7 +146,7 @@ function App() {
 
     if (socket.current) return;
 
-    const wsUrl = 'ws://localhost:8765';
+    const wsUrl = 'wss://chapgen.app/ws/';
     const ws = new WebSocket(wsUrl);
     socket.current = ws;
 
@@ -225,7 +225,7 @@ function App() {
       setLatestVideo(video);
 
       const videoUrl = `https://www.youtube.com/watch?v=${video.id}`;
-      const backendResponse = await fetch('http://localhost:8000/process-youtube-url/', {
+      const backendResponse = await fetch('/process-youtube-url/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
