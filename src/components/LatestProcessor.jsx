@@ -6,13 +6,13 @@ export default function LatestProcessor({
 }) {
   return (
     <div className="bg-white/0 backdrop-blur-sm border border-gray-300 rounded-2xl p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-      <div className="flex flex-col items-center justify-center space-y-6 w-full">
-        <h3 className="text-2xl font-bold mb-8 text-cyan-900 flex items-center gap-3">
+      <div className="flex flex-col items-start justify-center space-y-6 w-full">
+        <h3 className="text-2xl font-bold mb-8 text-cyan-900 justify-center flex flex-row gap-3">
           <span className="text-2xl">⚡</span>
           Generate & Add Chapters to Your Latest Video
         </h3>
 
-        <div className="w-full max-w-xl">
+        <div className="w-full max-w-2xl">
           <p className="text-gray-600 mb-6">
             Generate semantic chapters for your most recent upload and optionally update the video
             description. Use the Settings page to adjust creativity and segmentation preferences.

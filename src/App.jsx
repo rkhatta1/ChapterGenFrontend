@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 
 import { extractVideoIdFromUrl } from "./utils/youtube";
@@ -11,6 +11,7 @@ import ManualPage from "./pages/ManualPage";
 import ProcessedPage from "./pages/ProcessedPage";
 import SettingsPage from "./pages/SettingsPage";
 import HomePage from "./pages/HomePage";
+import ContactPage from "./pages/ContactPage";
 
 import { JobProvider, JobContext } from "./context/JobContext";
 import useAuth from "./hooks/useAuth";
@@ -20,6 +21,8 @@ import {
   processYoutubeUrl,
   updateVideoDescriptionFrontend,
 } from "./services/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { X } from "lucide-react";
 
 /**
  * RequireAuth component for route protection. If user is not logged in,
@@ -108,6 +111,7 @@ function AppInner() {
           })
           .join("\n");
         setGeneratedChapters(formatted);
+        jobCtx.updateJobStatus(active.jobId, "completed");
         jobCtx.clearJob();
       } else {
         jobCtx.clearJob();
@@ -281,6 +285,14 @@ function AppInner() {
     }
   }, [user, jobCtx]);
 
+  const location = useLocation();
+
+  useEffect(() => {
+    if (user && profile) {
+      localStorage.setItem("chapgen_last_path", location.pathname);
+    }
+  }, [location, user, profile]);
+
   // Login / logout
   const login = useGoogleLogin({
     onSuccess: (codeResponse) => {
@@ -315,16 +327,16 @@ function AppInner() {
         profile={profile}
         onLogout={handleLogout}
       />
-      <div className="h-screen flex-1 p-6">
-        {/* <div className="flex items-center justify-between mb-6">
-          <div />
-          <div className="flex items-center gap-4">{profile && <ProfileHeader profile={profile} onLogout={handleLogout} />}</div>
-        </div> */}
-
+      <div className="h-screen flex-1 p-6 overflow-y-auto">
         {error && (
-          <div className="p-4 mb-4 bg-red-50 border border-red-200 text-red-700 rounded">
-            {error}
-          </div>
+          <Alert variant="destructive" className="flex w-full mb-4">
+            <div className="flex w-full justify-between items-center">
+              <AlertDescription>{error}</AlertDescription>
+              <button onClick={() => setError('')} className="p-1 rounded-full hover:bg-red-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Alert>
         )}
 
         <Routes>
@@ -333,7 +345,7 @@ function AppInner() {
             path="/"
             element={
               user ? (
-                <Navigate to="/latest" replace />
+                <Navigate to={localStorage.getItem("chapgen_last_path") || "/latest"} replace />
               ) : (
                 <HomePage onLogin={login} />
               )
@@ -377,11 +389,24 @@ function AppInner() {
               </RequireAuth>
             }
           />
+          import ContactPage from "./pages/ContactPage";
+
+// ... inside App.jsx
+
           <Route
             path="/settings"
             element={
               <RequireAuth>
                 <SettingsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/contact"
+            element={
+              <RequireAuth>
+                <ContactPage />
               </RequireAuth>
             }
           />

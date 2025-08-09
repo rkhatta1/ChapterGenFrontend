@@ -7,9 +7,9 @@ export default function ManualProcessor({
   isLoading,
 }) {
   return (
-    <div className="bg-gray-white/0 backdrop-blur-sm border w-full flex border-gray-300 rounded-2xl p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden">
-      <div className="flex w-full flex-col items-center space-y-6">
-        <h3 className="text-2xl font-bold mb-6 text-cyan-900 flex items-center gap-3">
+    <div className="bg-white/0 backdrop-blur-sm border flex border-gray-300 rounded-2xl p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden">
+      <div className="flex w-full flex-col justify-center items-start space-y-6">
+        <h3 className="text-2xl font-bold mb-6 text-cyan-900 justify-center flex items-center gap-3">
           <span className="text-2xl">🎯</span>
           Generate Chapters for a Specific Video
         </h3>

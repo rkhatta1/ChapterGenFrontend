@@ -7,8 +7,16 @@ import {
   ChevronLeft,
   ChevronRight,
   CloudLightning,
+  Clock,
+  Mail,
 } from "lucide-react";
 import ProfileHeader from "./ProfileHeader";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * Collapsible Sidebar
@@ -18,12 +26,7 @@ import ProfileHeader from "./ProfileHeader";
  * - profile?: { name, email, picture }
  * - onLogout?: () => void
  */
-export default function Sidebar({
-  collapsed,
-  onToggle,
-  profile,
-  onLogout,
-}) {
+export default function Sidebar({ collapsed, onToggle, profile, onLogout }) {
   const isControlled = typeof collapsed === "boolean";
   const [internalCollapsed, setInternalCollapsed] = React.useState(false);
   const collapsedState = isControlled ? collapsed : internalCollapsed;
@@ -36,6 +39,8 @@ export default function Sidebar({
     }
   };
 
+  // ... inside the Sidebar component
+
   const menu = React.useMemo(
     () => [
       { to: "/latest", label: "Automated", icon: <CloudLightning size={18} /> },
@@ -46,6 +51,7 @@ export default function Sidebar({
         icon: <Folder size={18} />,
       },
       { to: "/settings", label: "Settings", icon: <Settings size={18} /> },
+      { to: "/contact", label: "Contact", icon: <Mail size={18} /> },
     ],
     []
   );
@@ -73,10 +79,16 @@ export default function Sidebar({
             aria-label={collapsedState ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsedState}
             onClick={toggle}
-            className={`${collapsedState ? "mx-auto" : "ml-auto"} inline-flex items-center justify-center rounded-md p-1
+            className={`${
+              collapsedState ? "mx-auto" : "ml-auto"
+            } inline-flex items-center justify-center rounded-md p-1
               bg-cyan-50 text-cyan-700 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-300`}
           >
-            {collapsedState ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {collapsedState ? (
+              <ChevronRight size={16} />
+            ) : (
+              <ChevronLeft size={16} />
+            )}
           </button>
         </div>
 
@@ -94,10 +106,16 @@ export default function Sidebar({
                  }`
               }
             >
-              <div className={`flex-shrink-0 ${collapsedState ? "mx-auto" : ""}`}>{item.icon}</div>
+              <div
+                className={`flex-shrink-0 ${collapsedState ? "mx-auto" : ""}`}
+              >
+                {item.icon}
+              </div>
               <span
                 className={`text-sm transition-opacity duration-200 ${
-                  collapsedState ? "opacity-0 pointer-events-none text-[0rem] hidden" : "opacity-100"
+                  collapsedState
+                    ? "opacity-0 pointer-events-none text-[0rem] hidden"
+                    : "opacity-100"
                 }`}
               >
                 {item.label}
@@ -105,10 +123,43 @@ export default function Sidebar({
             </NavLink>
           ))}
         </nav>
+        <div className="mt-4">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={`flex items-center gap-3 px-3 py-4 rounded-md opacity-50 cursor-not-allowed`}
+              >
+                <div
+                  className={`flex-shrink-0 ${collapsedState ? "mx-auto" : ""}`}
+                >
+                  <Clock size={18} />
+                </div>
+                <span
+                  className={`text-sm transition-opacity duration-200 ${
+                    collapsedState
+                      ? "opacity-0 pointer-events-none text-[0rem] hidden"
+                      : "opacity-100"
+                  }`}
+                >
+                  Schedule Jobs
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Coming Soon</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        </div>
       </div>
 
       {/* Bottom profile header */}
-      <div className={`p-3 border-t border-gray-100 ${profile ? "block" : "hidden"}`}>
+      <div
+        className={`p-3 border-t border-gray-100 ${
+          profile ? "block" : "hidden"
+        }`}
+      >
         <ProfileHeader
           profile={profile}
           onLogout={onLogout}

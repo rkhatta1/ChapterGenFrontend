@@ -19,8 +19,8 @@ export default function LatestPage({
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
+    <div className="flex flex-col max-w-full 2xl:max-w-[55%] mx-auto items-start p-6">
+      <div className="mb-6 flex flex-col space-y-2 max-w-2xl">
         <h2 className="text-2xl font-bold text-cyan-900">Generate for Latest Video</h2>
         <p className="text-sm text-gray-600">
           Generate semantic chapters for your most recent upload and optionally
@@ -29,12 +29,12 @@ export default function LatestPage({
         </p>
       </div>
 
-      <div className="space-y-6">
+      <div className="flex flex-col space-y-6">
         <JobStatusPanel />
 
         <LatestProcessor
           onGenerate={handleGenerate}
-          isLoading={isLoading}
+          isLoading={isLoading || !!jobCtx.job}
         />
       </div>
     </div>

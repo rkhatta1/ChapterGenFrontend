@@ -25,6 +25,8 @@ jobs:
           file: ./Dockerfile
           push: true
           # This tag matches the image name in your deployment.yaml
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/chapgen-frontend:v1
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/chapgen-frontend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/chapgen-frontend:latest
           build-args: |
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}

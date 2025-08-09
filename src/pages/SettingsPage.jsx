@@ -30,10 +30,10 @@ export default function SettingsPage() {
   const thresholdLabels = ["Detailed", "Default", "Abstract"];
 
   return (
-    <div className="p-6">
+    <div className="flex flex-col max-w-full 2xl:max-w-[55%] mx-auto items-start p-6">
       <h2 className="text-2xl font-bold text-cyan-900 mb-4">Settings</h2>
 
-      <div className="bg-white border rounded-lg p-6 space-y-6">
+      <div className="bg-white border flex flex-col w-full rounded-lg p-6 space-y-6">
         <div>
           <label className="block text-gray-700 font-medium">Creativity</label>
           <input
