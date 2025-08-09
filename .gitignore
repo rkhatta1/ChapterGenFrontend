@@ -6,12 +6,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+CONTEXT.md
+errors/
 node_modules
 dist
 dist-ssr
 *.local
-CONTEXT.md
 .env
 # Editor directories and files
 .vscode/*

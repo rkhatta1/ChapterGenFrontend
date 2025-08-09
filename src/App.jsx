@@ -1,358 +1,438 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useGoogleLogin, googleLogout } from '@react-oauth/google';
-import './App.css';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useGoogleLogin, googleLogout } from "@react-oauth/google";
 
-function App() {
+import { extractVideoIdFromUrl } from "./utils/youtube";
+import Sidebar from "./components/Sidebar";
+import MessageRouter from "./components/MessageRouter";
+
+import LatestPage from "./pages/LatestPage";
+import ManualPage from "./pages/ManualPage";
+import ProcessedPage from "./pages/ProcessedPage";
+import SettingsPage from "./pages/SettingsPage";
+import HomePage from "./pages/HomePage";
+import ContactPage from "./pages/ContactPage";
+
+import { JobProvider, JobContext } from "./context/JobContext";
+import useAuth from "./hooks/useAuth";
+
+import {
+  fetchProcessedVideos,
+  processYoutubeUrl,
+  updateVideoDescriptionFrontend,
+} from "./services/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { X } from "lucide-react";
+
+/**
+ * RequireAuth component for route protection. If user is not logged in,
+ * redirects to home ("/").
+ */
+function RequireAuth({ children }) {
+  const { user } = useAuth();
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
+/**
+ * AppInner: main app layout and logic. This component assumes AuthProvider
+ * is mounted at a higher level and useAuth() is available.
+ */
+function AppInner() {
+  const { user, setUser, profile, setProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [creativity, setCreativity] = useState(2);
-  const [threshold, setThreshold] = useState(1);
-  const [error, setError] = useState('');
-  const [profile, setProfile] = useState(null);
-  const [user, setUser] = useState(null);
-  const [latestVideo, setLatestVideo] = useState(null);
   const [processedVideos, setProcessedVideos] = useState([]);
-  const socket = useRef(null);
+  const [generatedChapters, setGeneratedChapters] = useState("");
+  const [error, setError] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const jobCtx = React.useContext(JobContext);
 
   const userRef = useRef(user);
-  const latestVideoRef = useRef(latestVideo);
-  const profileRef = useRef(profile); // Create a ref for the profile
-
   useEffect(() => {
     userRef.current = user;
-    latestVideoRef.current = latestVideo;
-    profileRef.current = profile; // Keep the ref updated
-  }, [user, latestVideo, profile]);
+  }, [user]);
 
-  const creativityLabels = ['GenZ', 'Creative', 'Neutral', 'Formal', 'Corporate'];
-  const thresholdLabels = ['Detailed', 'Default', 'Abstract'];
-
-  const login = useGoogleLogin({
-    onSuccess: (codeResponse) => setUser(codeResponse),
-    onError: (error) => console.log('Login Failed:', error),
-    scope: 'https://www.googleapis.com/auth/youtube',
-  });
-
-  const fetchProcessedVideos = useCallback(async (email) => {
+  const refreshProcessed = useCallback(async (email) => {
     try {
-      const response = await fetch(`/api/db/jobs/by-user/${email}`);
-      
-      if (response.status === 404) {
-        setProcessedVideos([]);
-        return;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        setProcessedVideos(data);
-      }
+      const data = await fetchProcessedVideos(email);
+      setProcessedVideos(data);
     } catch (err) {
-      console.error('Error fetching processed videos:', err);
-      setError('Could not fetch processed videos.');
+      console.error("Error fetching processed videos:", err);
     }
   }, []);
 
-  const reportJobStatus = (video_id, status) => {
-    if (socket.current && socket.current.readyState === WebSocket.OPEN) {
-      socket.current.send(JSON.stringify({
-        type: 'status_update',
-        video_id: video_id,
-        status: status,
-      }));
-    }
-  };
-
-  const updateVideoDescription = useCallback((chapters) => {
-    const currentUser = userRef.current;
-    const currentVideo = latestVideoRef.current;
-    const currentProfile = profileRef.current; // Use the ref here
-
-    if (currentUser && currentVideo && currentProfile) {
-      const formattedChapters = chapters.map(ch => `${formatTime(ch.start_time)} ${ch.title}`).join('\n');
-      const newDescription = `${currentVideo.snippet.description}\n\n\n\n\nChapters:\n${formattedChapters}`;
-
-      const updatedVideo = {
-        id: currentVideo.id,
-        snippet: {
-          ...currentVideo.snippet,
-          description: newDescription,
-        },
-      };
-
-      fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${currentUser.access_token}`,
-        },
-        body: JSON.stringify(updatedVideo),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          console.log('Video updated:', data);
-          setIsLoading(false);
-          if (data.error) {
-            setError(`Error updating video: ${data.error.message}`);
-            alert(`Error updating video: ${data.error.message}`);
-            reportJobStatus(currentVideo.id, 'failed');
-          } else {
-            alert('Video description updated successfully!');
-            reportJobStatus(currentVideo.id, 'completed');
-          }
-
-          // Introduce a delay to give the backend time to update the status
-          setTimeout(() => {
-            fetchProcessedVideos(currentProfile.email);
-          }, 1500); // 1.5 second delay
-        })
-        .catch((err) => {
-          setIsLoading(false);
-          setError(`An error occurred while updating the video: ${err.message}`);
-          console.log(err);
-
-          reportJobStatus(currentVideo.id, 'failed');
-          // Introduce a delay to give the backend time to update the status
-          setTimeout(() => {
-            fetchProcessedVideos(currentProfile.email);
-          }, 1500); // 1.5 second delay
-        });
-    }
-  }, [fetchProcessedVideos]); // Remove profile from the dependency array
-
   useEffect(() => {
-    if (user) {
-      fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${user.access_token}`, {
-        headers: {
-          Authorization: `Bearer ${user.access_token}`,
-          Accept: 'application/json',
-        },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          setProfile(data);
-          fetchProcessedVideos(data.email);
-        })
-        .catch((err) => console.log(err));
-    }
-  }, [user, fetchProcessedVideos]);
+    if (profile) refreshProcessed(profile.email);
+  }, [profile, refreshProcessed]);
 
-  useEffect(() => {
-    if (!user) {
-      if (socket.current) {
-        socket.current.close();
-        socket.current = null;
-      }
-      return;
-    }
+  // WebSocket handlers
+  const handleChaptersReady = useCallback(
+    async (chapters, meta) => {
+      const active = jobCtx?.job;
+      const incomingJob = meta?.job_id ?? meta?.raw?.job_id ?? null;
+      const incomingVideo = meta?.video_id ?? meta?.raw?.video_id ?? null;
 
-    if (socket.current) return;
+      const matches =
+        (active && incomingJob && active.jobId === incomingJob) ||
+        (!active && incomingVideo && active?.videoId === incomingVideo) ||
+        (active && active.processingMode === "manual" && !incomingJob);
 
-    const wsUrl = 'wss://chapgen.app/ws/';
-    const ws = new WebSocket(wsUrl);
-    socket.current = ws;
+      if (!matches) return;
 
-    ws.onopen = () => {
-      console.log('WebSocket connection established');
-      ws.send(JSON.stringify({ access_token: user.access_token }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'chapters_ready' && data.data.chapters) {
-          updateVideoDescription(data.data.chapters);
+      if (active && active.processingMode === "latest") {
+        try {
+          const currentUser = userRef.current;
+          const currentVideo = { id: incomingVideo };
+          if (!currentUser) throw new Error("Missing user token");
+          await updateVideoDescriptionFrontend({
+            access_token: currentUser.access_token,
+            video: currentVideo,
+            chapters,
+          });
+        } catch (err) {
+          console.error("Failed to update video description:", err);
+        } finally {
+          if (profile) setTimeout(() => refreshProcessed(profile.email), 1500);
+          jobCtx.clearJob();
         }
-      } catch (e) {
+      } else if (active && active.processingMode === "manual") {
+        const formatted = chapters
+          .map((ch) => {
+            const minutes = Math.floor(ch.start_time / 60)
+              .toString()
+              .padStart(2, "0");
+            const secs = Math.floor(ch.start_time % 60)
+              .toString()
+              .padStart(2, "0");
+            return `${minutes}:${secs} ${ch.title}`;
+          })
+          .join("\n");
+        setGeneratedChapters(formatted);
+        jobCtx.updateJobStatus(active.jobId, "completed");
+        jobCtx.clearJob();
+      } else {
+        jobCtx.clearJob();
+      }
+    },
+    [jobCtx, profile, refreshProcessed]
+  );
+
+  const handleStatusUpdate = useCallback(
+    (job_id, status) => {
+      if (!job_id) return;
+      jobCtx.updateJobStatus(job_id, status);
+      if (status === "completed" || status === "failed") {
+        if (profile) setTimeout(() => refreshProcessed(profile.email), 1500);
+      }
+    },
+    [jobCtx, profile, refreshProcessed]
+  );
+
+  // Page-level handlers
+  const onSubmitManual = useCallback(
+    async (url) => {
+      if (!user) throw new Error("User not logged in");
+      if (!url) {
+        setError("Please enter a YouTube video URL.");
+        return;
+      }
+
+      const videoId = extractVideoIdFromUrl(url);
+      if (!videoId) {
+        setError("Could not extract a valid Video ID from the URL.");
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const ytRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+            videoId
+          )}`,
+          {
+            headers: { Authorization: `Bearer ${user.access_token}` },
+          }
+        );
+
+        const ytJson = await ytRes.json();
+        if (!ytRes.ok || !ytJson.items || ytJson.items.length === 0) {
+          throw new Error(
+            ytJson?.error?.message ||
+              "Could not fetch details for the provided video URL."
+          );
+        }
+        const video = ytJson.items[0];
+
+        const backendResponse = await processYoutubeUrl({
+          youtube_url: url,
+          generation_config: { update_video_description: false },
+          access_token: user.access_token,
+          video_details: video,
+        });
+
+        if (backendResponse?.status === "accepted" && backendResponse.job_id) {
+          jobCtx.startJob({
+            jobId: backendResponse.job_id,
+            videoId: backendResponse.video_id || videoId,
+            mode: "manual",
+            status: "queued",
+          });
+        } else {
+          throw new Error(backendResponse?.message || "Failed to queue job");
+        }
+      } catch (err) {
+        setError(`An error occurred: ${err.message}`);
         setIsLoading(false);
-        console.error('Failed to parse incoming message:', e);
-        setError('Received an invalid message from the server.');
       }
-    };
+    },
+    [user, jobCtx]
+  );
 
-    ws.onerror = (err) => {
-      setIsLoading(false);
-      console.error('WebSocket error:', err);
-      setError('WebSocket connection failed. Is the frontend-bridge running?');
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket connection closed');
-      socket.current = null;
-    };
-
-    return () => {
-      if (socket.current) {
-        socket.current.close();
-      }
-    };
-  }, [user]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!user) {
-      setError('Please sign in first.');
-      return;
-    }
-    if (!socket.current || socket.current.readyState !== WebSocket.OPEN) {
-      setError('WebSocket is not connected. Please wait and try again.');
-      return;
-    }
-
+  const onSubmitLatest = useCallback(async () => {
+    if (!user) throw new Error("User not logged in");
     setIsLoading(true);
-    setError('');
-    setLatestVideo(null);
-
+    setError("");
     try {
-      let response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true`, {
-        headers: { Authorization: `Bearer ${user.access_token}` },
-      });
-      let data = await response.json();
-      if (!response.ok) throw new Error(data.error.message);
-      const uploadsPlaylistId = data.items[0].contentDetails.relatedPlaylists.uploads;
+      const SETTINGS_KEY = "chapgen_user_settings";
+      let creativityLabel = "Neutral";
+      let segmentationLabel = "Default";
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) {
+          const s = JSON.parse(raw);
+          const creativityIndex = Number.isFinite(s.creativity)
+            ? s.creativity
+            : 2;
+          const thresholdIndex = Number.isFinite(s.threshold) ? s.threshold : 1;
+          const creativityLabels = [
+            "GenZ",
+            "Creative",
+            "Neutral",
+            "Formal",
+            "Corporate",
+          ];
+          const thresholdLabels = ["Detailed", "Default", "Abstract"];
+          creativityLabel = creativityLabels[creativityIndex] || "Neutral";
+          segmentationLabel = thresholdLabels[thresholdIndex] || "Default";
+        }
+      } catch (e) {}
 
-      response = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=1`, {
-        headers: { Authorization: `Bearer ${user.access_token}` },
-      });
+      let response = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true`,
+        {
+          headers: { Authorization: `Bearer ${user.access_token}` },
+        }
+      );
+      let data = await response.json();
+      if (!response.ok || !data.items || data.items.length === 0)
+        throw new Error(
+          data.error?.message || "Could not find YouTube channel."
+        );
+      const uploadsPlaylistId =
+        data.items[0].contentDetails.relatedPlaylists.uploads;
+
+      response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=1`,
+        {
+          headers: { Authorization: `Bearer ${user.access_token}` },
+        }
+      );
       data = await response.json();
-      if (!response.ok) throw new Error(data.error.message);
+      if (!response.ok || !data.items || data.items.length === 0)
+        throw new Error(data.error?.message || "Could not find latest video.");
       const videoId = data.items[0].contentDetails.videoId;
 
-      response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, {
-          headers: { Authorization: `Bearer ${user.access_token}` }
-      });
+      response = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`,
+        {
+          headers: { Authorization: `Bearer ${user.access_token}` },
+        }
+      );
       data = await response.json();
       if (!response.ok) throw new Error(data.error.message);
       const video = data.items[0];
-      setLatestVideo(video);
 
       const videoUrl = `https://www.youtube.com/watch?v=${video.id}`;
-      const backendResponse = await fetch('/process-youtube-url/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const backendResponse = await processYoutubeUrl({
+        youtube_url: videoUrl,
+        generation_config: {
+          creativity: creativityLabel,
+          segmentation_threshold: segmentationLabel,
+          update_video_description: true,
         },
-        body: JSON.stringify({
-          youtube_url: videoUrl,
-          generation_config: {
-            creativity: creativityLabels[creativity],
-            segmentation_threshold: thresholdLabels[threshold],
-          },
-          access_token: user.access_token,
-          video_details: video
-        }),
+        access_token: user.access_token,
+        video_details: video,
       });
 
-      if (!backendResponse.ok) {
-        const errorResult = await backendResponse.json();
-        throw new Error(errorResult.detail || `HTTP error! Status: ${backendResponse.status}`);
+      if (backendResponse?.status === "accepted" && backendResponse.job_id) {
+        jobCtx.startJob({
+          jobId: backendResponse.job_id,
+          videoId: backendResponse.video_id || video.id,
+          mode: "latest",
+          status: "queued",
+        });
+      } else {
+        throw new Error(backendResponse?.message || "Failed to queue job");
       }
-
-      const result = await backendResponse.json();
-      console.log('Ingestion service response:', result);
-      if (result.status === 'failure') {
-        setIsLoading(false);
-        setError(result.message || 'Failed to process the video.');
-      }
-
     } catch (err) {
-      console.error('An error occurred:', err);
-      setError(`An error occurred: ${err.message}`);
-      setIsLoading(false);
+        setError(`An error occurred: ${err.message}`);
+        setIsLoading(false);
     }
-  };
+  }, [user, jobCtx]);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    if (user && profile) {
+      localStorage.setItem("chapgen_last_path", location.pathname);
+    }
+  }, [location, user, profile]);
+
+  // Login / logout
+  const login = useGoogleLogin({
+    onSuccess: (codeResponse) => {
+      localStorage.setItem("chapgen_user", JSON.stringify(codeResponse));
+      setUser(codeResponse);
+    },
+    onError: (error) => console.log("Login Failed:", error),
+    scope: "https://www.googleapis.com/auth/youtube",
+  });
 
   const handleLogout = () => {
     googleLogout();
-    setProfile(null);
+    localStorage.removeItem("chapgen_user");
     setUser(null);
-    setLatestVideo(null);
-    setProcessedVideos([]);
+    setProfile(null);
   };
 
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    const onLogout = () => {
+      // Reuse existing handleLogout
+      handleLogout && handleLogout();
+    };
+    window.addEventListener("chapgen:logout", onLogout);
+    return () => window.removeEventListener("chapgen:logout", onLogout);
+  }, [handleLogout]);
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>AI YouTube Chapter Generator</h1>
-        {profile ? (
-          <div>
-            <img src={profile.picture} alt="user" />
-            <h3>Welcome, {profile.name}</h3>
-            <p>({profile.email})</p>
-            <br />
-            <button onClick={handleLogout}>Log out</button>
-          </div>
-        ) : (
-          <button onClick={() => login()}>Sign in with Google 🚀</button>
-        )}
-
-        {profile && (
-          <div className="generator-controls">
-            <div className="creativity-slider-container">
-              <label htmlFor="creativity">Creativity: {creativityLabels[creativity]}</label>
-              <input
-                type="range"
-                id="creativity"
-                min="0"
-                max="4"
-                value={creativity}
-                onChange={(e) => setCreativity(e.target.value)}
-                className="creativity-slider"
-                disabled={isLoading}
-              />
+    <div className="h-screen overflow-hidden flex bg-gray-50">
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((s) => !s)}
+        profile={profile}
+        onLogout={handleLogout}
+      />
+      <div className="h-screen flex-1 p-6 overflow-y-auto">
+        {error && (
+          <Alert variant="destructive" className="flex w-full mb-4">
+            <div className="flex w-full justify-between items-center">
+              <AlertDescription>{error}</AlertDescription>
+              <button onClick={() => setError('')} className="p-1 rounded-full hover:bg-red-100">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="segmentation-slider-container">
-              <label htmlFor="segmentation">Segmentation: {thresholdLabels[threshold]}</label>
-              <input
-                type="range"
-                id="segmentation"
-                min="0"
-                max="2"
-                value={threshold}
-                onChange={(e) => setThreshold(e.target.value)}
-                className="segmentation-slider"
-                disabled={isLoading}
-              />
-            </div>
-            <button onClick={handleSubmit} className="submit-btn" disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Generate & Add Chapters to Latest Video'}
-            </button>
-          </div>
+          </Alert>
         )}
 
-        {error && <p className="error-message">{error}</p>}
+        <Routes>
+          {/* Home at /: if user is logged in, redirect to /latest, otherwise show HomePage */}
+          <Route
+            path="/"
+            element={
+              user ? (
+                <Navigate to={localStorage.getItem("chapgen_last_path") || "/latest"} replace />
+              ) : (
+                <HomePage onLogin={login} />
+              )
+            }
+          />
 
-        {isLoading && (
-          <div className="loading-container">
-            <p>Processing video... this may take a few minutes.</p>
-            <p>Generating chapters and updating your video.</p>
-          </div>
-        )}
+          {/* Protected routes */}
+          <Route
+            path="/latest"
+            element={
+              <RequireAuth>
+                <LatestPage
+                  onSubmitLatest={onSubmitLatest}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/manual"
+            element={
+              <RequireAuth>
+                <ManualPage
+                  onManualSubmit={onSubmitManual}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                  generatedChapters={generatedChapters}
+                />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/processed"
+            element={
+              <RequireAuth>
+                <ProcessedPage
+                  processedVideos={processedVideos}
+                  refresh={() => profile && refreshProcessed(profile.email)}
+                />
+              </RequireAuth>
+            }
+          />
+          import ContactPage from "./pages/ContactPage";
 
-        {processedVideos.length > 0 && (
-          <div className="processed-videos">
-            <h2>Previously Processed Videos</h2>
-            <ul>
-              {processedVideos.map(video => (
-                <li key={video.id}>
-                  <img src={video.thumbnail_url} alt={video.title} />
-                  <div>
-                    <h3>{video.title}</h3>
-                    <p>{video.description}</p>
-                    <p>Status: {video.status}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </header>
+// ... inside App.jsx
+
+          <Route
+            path="/settings"
+            element={
+              <RequireAuth>
+                <SettingsPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/contact"
+            element={
+              <RequireAuth>
+                <ContactPage />
+              </RequireAuth>
+            }
+          />
+
+          {/* Catch-all: redirect to root */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+
+      {/* Central websocket message router */}
+      <MessageRouter
+        onMessage={() => {}}
+        onChaptersReady={handleChaptersReady}
+        onStatusUpdate={handleStatusUpdate}
+      />
     </div>
   );
 }
 
-export default App;
+// Top-level App wrapper that includes JobProvider to persist job across refresh
+export default function App() {
+  return (
+    <JobProvider>
+      <BrowserRouter>
+        <AppInner />
+      </BrowserRouter>
+    </JobProvider>
+  );
+}
